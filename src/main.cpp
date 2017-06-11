@@ -1,13 +1,19 @@
 #include <Arduino.h>
-#include <Eventually.h>
+#include <TaskScheduler.h>
 #include <DHT.h>
 #include <Array>
 
 #define BLINK_INTERVAL 79
 #define SENSING_INTERVAL 60000
 
-EvtManager mgr;
+void updateLEDs();
+void printSensorData();
+
+Scheduler runner;
 DHT dht;
+
+Task ledUpdateTask(BLINK_INTERVAL, TASK_FOREVER, &updateLEDs, &runner, true);
+Task sensingTask(SENSING_INTERVAL, TASK_FOREVER, &printSensorData, &runner, true);
 
 std::array<uint8_t, 6> ledSequence  = { D0, D0, D5, D6,  D6, D5 };
 uint8_t currentIndex = 0;
@@ -18,15 +24,13 @@ void disableLEDs() {
   digitalWrite(D6, LOW);
 }
 
-bool updateLEDs() {
+void updateLEDs() {
   disableLEDs();
   digitalWrite(ledSequence[currentIndex], HIGH);
   currentIndex = (currentIndex + 1) % ledSequence.size();
-
-  return true;
 }
 
-bool printSensorData() {
+void printSensorData() {
   float humidity = dht.getHumidity();
   float temperature = dht.getTemperature();
 
@@ -36,8 +40,6 @@ bool printSensorData() {
   Serial.print("\t\t");
   Serial.print(temperature, 1);
   Serial.print("\n");
-
-  return true;
 }
 
 void setup() {
@@ -52,9 +54,10 @@ void setup() {
   Serial.println();
   Serial.println("Status\tHumidity (%)\tTemperature (C)");
 
-  //Start event routines
-  //mgr.addListener(new EvtTimeListener(BLINK_INTERVAL, true, (EvtAction)updateLEDs));
-  mgr.addListener(new EvtTimeListener(SENSING_INTERVAL, true, (EvtAction)printSensorData));
+  //Start task routines
+  runner.startNow();
 }
 
-USE_EVENTUALLY_LOOP(mgr)
+void loop () {
+  runner.execute();
+}
